@@ -46,10 +46,10 @@ def generate_clawback_report(
     # 1) Read Excel and cleanup  (parity with CLI)
     # ------------------------------------------------------------
     # Raw input: skip the first row, all text
-
-    logging.info("Process started.") 
+    logger = logging.getLogger(__name__)
+    logger.info("Process started.") 
     
-    logging.info("Reading input 1st Excel files.")
+    logger.info("Reading input 1st Excel files.")
     df_raw = pd.read_excel(BytesIO(input1_bytes), dtype=str, skiprows=1, engine="openpyxl")
     print(df_raw.columns)  # parity with CLI (debug prints)
     df_raw.columns = df_raw.columns.str.strip()
@@ -194,7 +194,7 @@ def generate_clawback_report(
     # 6) Merge Team Group (mapping)
     # ------------------------------------------------------------
     
-    logging.info("Reading input 2nd Excel files.")
+    logger.info("Reading input 2nd Excel files.")
     
     df_leave_manager = pd.read_excel(BytesIO(input2_bytes), dtype=str, engine="openpyxl")
     df_leave_manager.rename(columns={'NAME ': 'Adviser'}, inplace=True)
@@ -302,7 +302,7 @@ def generate_clawback_report(
     # 10) Manager Report assembly
     # ------------------------------------------------------------
     
-    logging.info("Assembling Manager Report.")
+    logger.info("Assembling Manager Report.")
     
     main_df_sorted = main_df.sort_values(['Team Group','Adviser'], na_position='last')
     grouped = main_df_sorted.groupby('Team Group', dropna=False)
@@ -367,7 +367,7 @@ def generate_clawback_report(
     # 11) Excel writing + formatting  (mirrors CLI)
     # ------------------------------------------------------------
     
-    logging.info("Generating Excel report.")
+    logger.info("Generating Excel report.")
     
     wb = Workbook()
 
@@ -565,4 +565,4 @@ def generate_clawback_report(
     filename = f"clawback_report_{current_ts}.xlsx"
     return buf.read(), filename
 
-    logging.info("Process completed.")
+    logger.info("Process completed.")
