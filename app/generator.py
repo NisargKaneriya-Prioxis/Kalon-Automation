@@ -5,6 +5,7 @@ from datetime import datetime
 from openpyxl.styles import Border, Side, PatternFill, Font, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl import Workbook
+import logging
 
 
 class NoDataInRange(Exception):
@@ -45,10 +46,16 @@ def generate_clawback_report(
     # 1) Read Excel and cleanup  (parity with CLI)
     # ------------------------------------------------------------
     # Raw input: skip the first row, all text
+
+    logging.info("Process started.") 
+    
+    logging.info("Reading input 1st Excel files.")
     df_raw = pd.read_excel(BytesIO(input1_bytes), dtype=str, skiprows=1, engine="openpyxl")
     print(df_raw.columns)  # parity with CLI (debug prints)
     df_raw.columns = df_raw.columns.str.strip()
 
+   
+    
     print("=== EXACT COLUMN NAMES ===")  # parity with CLI (debug prints)
     for i, col in enumerate(df_raw.columns):
         print(f"{i}: {repr(col)}")
@@ -186,6 +193,9 @@ def generate_clawback_report(
     # ------------------------------------------------------------
     # 6) Merge Team Group (mapping)
     # ------------------------------------------------------------
+    
+    logging.info("Reading input 2nd Excel files.")
+    
     df_leave_manager = pd.read_excel(BytesIO(input2_bytes), dtype=str, engine="openpyxl")
     df_leave_manager.rename(columns={'NAME ': 'Adviser'}, inplace=True)
     df_leave_manager['Team Group'] = df_leave_manager['Team Group'].str.rstrip()
@@ -291,6 +301,9 @@ def generate_clawback_report(
     # ------------------------------------------------------------
     # 10) Manager Report assembly
     # ------------------------------------------------------------
+    
+    logging.info("Assembling Manager Report.")
+    
     main_df_sorted = main_df.sort_values(['Team Group','Adviser'], na_position='last')
     grouped = main_df_sorted.groupby('Team Group', dropna=False)
 
@@ -353,6 +366,9 @@ def generate_clawback_report(
     # ------------------------------------------------------------
     # 11) Excel writing + formatting  (mirrors CLI)
     # ------------------------------------------------------------
+    
+    logging.info("Generating Excel report.")
+    
     wb = Workbook()
 
     # Styles
@@ -548,3 +564,5 @@ def generate_clawback_report(
     current_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"clawback_report_{current_ts}.xlsx"
     return buf.read(), filename
+
+    logging.info("Process completed.")
