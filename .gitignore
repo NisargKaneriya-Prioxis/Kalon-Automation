@@ -1,0 +1,43 @@
+# Python
+
+**pycache**/
+*.py[cod]
+*.so
+*.exe
+
+# Virtual environments
+
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+
+# Jupyter & notebooks
+
+.ipynb_checkpoints/
+
+# Logs
+
+*.log
+
+# OS files
+
+.DS_Store
+Thumbs.db
+
+# IDEs
+
+.vscode/
+.idea/
+
+# Cache
+
+*.cache/
+*.pkl
+
+# Environments / Keys
+
+.env
+*.env
+secret.json
