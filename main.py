@@ -8,11 +8,15 @@ import webbrowser
 import time
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import FileResponse
+from fastapi.concurrency import run_in_threadpool
 
 from app.generator import generate_clawback_report, NoDataInRange
 
 app = FastAPI(title="Clawback Report API")
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 def cleanup_temp_files(file_paths: list):
     """Deletes the temporary files from the server after the response is sent."""
     for path in file_paths:
@@ -45,9 +49,10 @@ async def generate_report(
             shutil.copyfileobj(input2.file, buffer)
             
         # 3. Process the files
-        output_path, file_name = generate_clawback_report(
-            in1_path, in2_path, start_date, end_date, report_title
-        )
+        output_path, file_name = await run_in_threadpool(
+        generate_clawback_report,
+        in1_path, in2_path, start_date, end_date, report_title
+)
 
         # 4. Add all files to the cleanup queue
         background_tasks.add_task(cleanup_temp_files, [in1_path, in2_path, output_path])
