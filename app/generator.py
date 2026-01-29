@@ -47,7 +47,9 @@ def generate_clawback_report(
     df_raw = df_raw[(df_raw['Start Date'] >= start_date) & (df_raw['Start Date'] <= end_date)]
 
     if df_raw.empty:
-        raise NoDataInRange(f"No data found between {start_date.date()} and {end_date.date()}")
+        formatted_start = start_date.strftime('%d-%B-%Y')
+        formatted_end = end_date.strftime('%d-%B-%Y')
+        raise NoDataInRange(f"No data found between {formatted_start} and {formatted_end}")
 
     #=============================================================================
     # 2) NTU policies (zero-payment)
