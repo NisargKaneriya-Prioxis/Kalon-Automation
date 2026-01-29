@@ -1,92 +1,75 @@
 
 import os
-import time
+import tempfile
+import shutil
+import uvicorn
 import threading
 import webbrowser
-from io import BytesIO
-from typing import Optional
+import time
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi.responses import FileResponse
 
-import uvicorn
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
-from fastapi.responses import StreamingResponse
-from fastapi.concurrency import run_in_threadpool
+from app.generator import generate_clawback_report, NoDataInRange
 
-# Import your report generator
-from app.generator import generate_clawback_report
-from app.generator import NoDataInRange 
+app = FastAPI(title="Clawback Report API")
 
+def cleanup_temp_files(file_paths: list):
+    """Deletes the temporary files from the server after the response is sent."""
+    for path in file_paths:
+        if path and os.path.exists(path):
+            try:
+                os.remove(path)
+                print(f"Successfully deleted temp file: {path}")
+            except Exception as e:
+                print(f"Error deleting temp file {path}: {e}")
 
-# FastAPI app
-app = FastAPI(
-    title="Clawback Report API",
-    version="1.0.0",
-    description="Upload two Excel files + dates to generate Clawback Report",
-)
-
-
-# -----------------------------
-#     HEALTH CHECK ENDPOINT
-# -----------------------------
-@app.get("/health")
-async def health():
-    return {"status": "OK"}
-
-
-# -----------------------------
-#     REPORT GENERATION
-# -----------------------------
 @app.post("/generate-report")
 async def generate_report(
-    input1: UploadFile = File(..., description="Raw data Excel"),
-    input2: UploadFile = File(..., description="Team mapping Excel"),
+    background_tasks: BackgroundTasks,
+    input1: UploadFile = File(...),
+    input2: UploadFile = File(...),
     start_date: str = Form(...),
     end_date: str = Form(...),
-    report_title: Optional[str] = Form(None),
+    report_title: str = Form(None),
 ):
-    """Upload 2 Excels + date range -> returns final XLSX report"""
+    # 1. Create unique temporary paths for inputs
+    temp_dir = tempfile.gettempdir()
+    in1_path = os.path.join(temp_dir, f"upload1_{time.time()}_{input1.filename}")
+    in2_path = os.path.join(temp_dir, f"upload2_{time.time()}_{input2.filename}")
 
-    # Validate file types
-    for f in (input1, input2):
-        if not f.filename.lower().endswith((".xlsx", ".xlsm")):
-            raise HTTPException(400, f"{f.filename} must be an Excel file (.xlsx or .xlsm).")
-
-    # Read bytes
-    in1_bytes = await input1.read()
-    in2_bytes = await input2.read()
-
+    # 2. Save uploaded files to the temp directory
     try:
-        excel_bytes, file_name = await run_in_threadpool(
-            generate_clawback_report,
-            in1_bytes,
-            in2_bytes,
-            start_date,
-            end_date,
-            report_title
+        with open(in1_path, "wb") as buffer:
+            shutil.copyfileobj(input1.file, buffer)
+        with open(in2_path, "wb") as buffer:
+            shutil.copyfileobj(input2.file, buffer)
+            
+        # 3. Process the files
+        output_path, file_name = generate_clawback_report(
+            in1_path, in2_path, start_date, end_date, report_title
         )
+
+        # 4. Add all files to the cleanup queue
+        background_tasks.add_task(cleanup_temp_files, [in1_path, in2_path, output_path])
+
+        # 5. Return the file from disk
+        return FileResponse(
+            path=output_path,
+            filename=file_name,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
     except NoDataInRange as e:
+        cleanup_temp_files([in1_path, in2_path])
         raise HTTPException(422, str(e))
     except Exception as e:
-        raise HTTPException(500, f"Processing Error: {e}")
+        cleanup_temp_files([in1_path, in2_path])
+        raise HTTPException(500, f"Processing Error: {str(e)}")
 
-    # Send file back
-    return StreamingResponse(
-        BytesIO(excel_bytes),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{file_name}"'}
-    )
-
-
-# -----------------------------
-# OPEN BROWSER WHEN APP STARTS
-# -----------------------------
 def open_docs():
-    time.sleep(1)
+    time.sleep(1.5)
     webbrowser.open("http://127.0.0.1:3978/docs")
 
-
-# -----------------------------
-#     DEV MODE RUNNER
-# -----------------------------
 if __name__ == "__main__":
     threading.Thread(target=open_docs, daemon=True).start()
     uvicorn.run("main:app", host="0.0.0.0", port=3978, reload=True)
